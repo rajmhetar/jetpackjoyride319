@@ -10,23 +10,38 @@
 #include "../inc/DAC5.h"
 #include "../inc/Timer.h"
 
-
+// Global variables for sound playback
+const uint8_t *soundPtr;  // Pointer to current sound data
+uint32_t soundCount;      // Number of samples remaining
+uint32_t soundLength;     // Total length of sound
 
 void SysTick_IntArm(uint32_t period, uint32_t priority){
-  // write this
+  // Configure SysTick for 11kHz playback
+  SysTick->CTRL = 0;         // Disable SysTick
+  SysTick->LOAD = period-1;  // Set reload value
+  SysTick->VAL = 0;          // Clear current value
+  SysTick->CTRL = 0x00000007; // Enable SysTick with core clock and interrupts
+  NVIC_SetPriority(SysTick_IRQn, priority); // Set interrupt priority
 }
+
 // initialize a 11kHz SysTick, however no sound should be started
 // initialize any global variables
-// Initialize the 5 bit DAC
+// Initialize the 5-bit DAC
 void Sound_Init(void){
-// write this
- 
+  DAC5_Init();  // Initialize 5-bit DAC
+  soundPtr = 0; // No sound playing initially
+  soundCount = 0;
+  soundLength = 0;
 }
+
 extern "C" void SysTick_Handler(void);
 void SysTick_Handler(void){ // called at 11 kHz
   // output one value to DAC if a sound is active
-    // output one value to DAC if a sound is active
-
+  if(soundCount > 0){
+    DAC5_Out(*soundPtr); // Output current sample
+    soundPtr++;          // Move to next sample
+    soundCount--;        // Decrement remaining samples
+  }
 }
 
 //******* Sound_Start ************
@@ -40,35 +55,18 @@ void SysTick_Handler(void){ // called at 11 kHz
 // Output: none
 // special cases: as you wish to implement
 void Sound_Start(const uint8_t *pt, uint32_t count){
-// write this
-  
+  soundPtr = pt;      // Set pointer to start of sound
+  soundCount = count; // Set number of samples to play
+  soundLength = count;
+  SysTick_IntArm(80000000/11025, 1); // Configure SysTick for 11kHz
 }
 
+// Individual sound functions
 void Sound_Shoot(void){
-// write this
-  Sound_Start( shoot, 4080);
-}
-void Sound_Killed(void){
-// write this
-
-}
-void Sound_Explosion(void){
-// write this
-
+  Sound_Start(shoot, 4080);
 }
 
-void Sound_Fastinvader1(void){
-
+void Sound_Coin(void){
+  Sound_Start(coin_recieved_230517, 36780);
 }
-void Sound_Fastinvader2(void){
 
-}
-void Sound_Fastinvader3(void){
-
-}
-void Sound_Fastinvader4(void){
-
-}
-void Sound_Highpitch(void){
-
-}
