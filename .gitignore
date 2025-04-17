@@ -1,0 +1,32 @@
+# Build artifacts
+Debug/
+Release/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Generated files
+.config/
+.launches/
+.xdchelp
+*.swp
+*.swo
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Large binary files
+TExaSdisplay.exe
+
+# Compiler files
+msp430-gcc.dmg
+msp430-gcc.tar.bz2
+
+# IDE specific files
+.theia/
+.vscode/
+*.code-workspace 
