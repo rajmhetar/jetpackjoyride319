@@ -1,0 +1,7 @@
+[
+   {
+      "directory" : "/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/empty_LP_MSPM0G3507_nortos_ticlang/Debug",
+      "command"   : "clang++ -D__MSPM0G3507__ -I\"/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/empty_LP_MSPM0G3507_nortos_ticlang\" -I\"/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/empty_LP_MSPM0G3507_nortos_ticlang/Debug\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source/third_party/CMSIS/Core/Include\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/armv7em-ti-none-eabihf/c++/v1\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/c++/v1\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/lib/clang/18/include\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/c\"",
+      "file"      : "/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/empty_LP_MSPM0G3507_nortos_ticlang/Debug/ti_msp_dl_config.c"
+   }
+]

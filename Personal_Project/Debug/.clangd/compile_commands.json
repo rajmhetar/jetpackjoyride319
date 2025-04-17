@@ -1,0 +1,17 @@
+[
+   {
+      "directory" : "/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/Debug",
+      "command"   : "clang++ -D__MSPM0G3507__ -I\"/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project\" -I\"/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/Debug\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source/ti/drivers\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source/third_party/CMSIS/Core/Include\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/armv7em-ti-none-eabihf/c++/v1\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/c++/v1\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/lib/clang/18/include\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/c\"",
+      "file"      : "/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/Debug/ti_msp_dl_config.c"
+   },
+   {
+      "directory" : "/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/Debug",
+      "command"   : "clang++ -D__MSPM0G3507__ -I\"/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project\" -I\"/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/Debug\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source/ti/drivers\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source/third_party/CMSIS/Core/Include\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/armv7em-ti-none-eabihf/c++/v1\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/c++/v1\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/lib/clang/18/include\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/c\"",
+      "file"      : "/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/Scale_Reader.c"
+   },
+   {
+      "directory" : "/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/Debug",
+      "command"   : "clang++ -D__MSPM0G3507__ -I\"/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project\" -I\"/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/Debug\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source/ti/drivers\" -I\"/Applications/ti/mspm0_sdk_2_03_00_07/source/third_party/CMSIS/Core/Include\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/armv7em-ti-none-eabihf/c++/v1\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/c++/v1\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/lib/clang/18/include\" -isystem\"/Applications/ti/ccs2000/ccs/tools/compiler/ti-cgt-armllvm_4.0.1.LTS/include/c\"",
+      "file"      : "/Users/joshhlee614/Downloads/MSPM0_ValvanoWare/Personal_Project/UART.c"
+   }
+]
