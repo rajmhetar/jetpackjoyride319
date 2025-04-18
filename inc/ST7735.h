@@ -227,18 +227,19 @@ enum initRFlags{
  * \brief The following constants are possible colors for the LCD in RGB format
  */
 #define ST7735_BLACK   0x0000
-#define ST7735_BLUE    0xF800
-#define ST7735_RED     0x001F
-#define ST7735_GREEN   0x07E0
-#define ST7735_CYAN    0xFFE0
-#define ST7735_MAGENTA 0xF81F
-#define ST7735_YELLOW  0x07FF
+#define ST7735_BLUE    ST7735_Color565(0,0,255) // BGR: 0xF800
+#define ST7735_RED     ST7735_Color565(255,0,0) // BGR: 0x001F
+#define ST7735_GREEN   ST7735_Color565(0,255,0) // BGR: 0x07E0
+#define ST7735_CYAN    ST7735_Color565(255,255,0) // BGR: 0xFFE0
+#define ST7735_MAGENTA ST7735_Color565(255,0,255) // BGR: 0xF81F
+#define ST7735_YELLOW  ST7735_Color565(255,255,0) // BGR: 0x07FF
 #define ST7735_WHITE   0xFFFF
-#define ST7735_LIGHTGREY ST7735_Color565(228,228,228)
-#define ST7735_DARKGREY ST7735_Color565(32,32,32)
-#define ST7735_ORANGE ST7735_Color565(255,102,0)
-#define ST7735_PURPLE ST7735_Color565(106,13,173)
-
+// https://html-color.codes/
+#define ST7735_LIGHTGREY ST7735_Color565(211,211,211)
+#define ST7735_DARKGREY ST7735_Color565(128,128,128) 
+#define ST7735_ORANGE ST7735_Color565(255,165,0)  
+#define ST7735_PURPLE ST7735_Color565(128,0,128) 
+#define ST7735_BROWN ST7735_Color565(165,42,42)
 /**
  * Initialize ST7735B color 128x160-pixel TFT LCD 
  * @param none
@@ -247,8 +248,6 @@ enum initRFlags{
  * @note assumes GPIOA and GPIOB are reset and powered previously
  */
 void ST7735_InitB(void);
-
-
 
 /**
  * Initialize ST7735R color 128x160-pixel TFT LCD 
@@ -804,7 +803,7 @@ void ST7735_SetTextColor(uint16_t color);
  * @return none
  * @brief  use ST7735 LCD to output from printf 
  */
-void ST7735_InitPrintf(void);
+void ST7735_InitPrintf(enum initRFlags option);
 
 
 /**

@@ -66,9 +66,9 @@
 // CS   - SPI1 CS0:  PB6 TFT_CS, active low to enable TFT
 // *CS  - (NC) SDC_CS, active low to enable SDC
 // MISO - (NC) MISO SPI data from SDC to microcontroller
-// SDA  – (NC) I2C data for ADXL345 accelerometer
-// SCL  – (NC) I2C clock for ADXL345 accelerometer
-// SDO  – (NC) I2C alternate address for ADXL345 accelerometer
+// SDA  ï¿½ (NC) I2C data for ADXL345 accelerometer
+// SCL  ï¿½ (NC) I2C clock for ADXL345 accelerometer
+// SDO  ï¿½ (NC) I2C alternate address for ADXL345 accelerometer
 // Backlight + - Light, backlight connected to +3.3 V
 
 // **********wide.hk ST7735R with ADXL335 accelerometer *******************
@@ -82,9 +82,9 @@
 // CS   - SPI1 CS0:  PB6 TFT_CS, active low to enable TFT
 // *CS  - (NC) SDC_CS, active low to enable SDC
 // MISO - (NC) MISO SPI data from SDC to microcontroller
-// X– (NC) analog input X-axis from ADXL335 accelerometer
-// Y– (NC) analog input Y-axis from ADXL335 accelerometer
-// Z– (NC) analog input Z-axis from ADXL335 accelerometer
+// Xï¿½ (NC) analog input X-axis from ADXL335 accelerometer
+// Yï¿½ (NC) analog input Y-axis from ADXL335 accelerometer
+// Zï¿½ (NC) analog input Z-axis from ADXL335 accelerometer
 // Backlight + - Light, backlight connected to +3.3 V
 
 // **********HiLetgo ST7735 TFT and SDC (SDC not tested)*******************
@@ -1865,8 +1865,8 @@ int ST7735_rename(const char *old_name, const char *new_name){
 // Initialize the ST7735 for printf
 // Input: none
 // Output: none
-void ST7735_InitPrintf(void){int ret_val; FILE *fptr;
-  ST7735_InitR(INITR_REDTAB);
+void ST7735_InitPrintf(enum initRFlags option){int ret_val; FILE *fptr;
+  ST7735_InitR(INITR_BLACKTAB);
   ret_val = add_device("st7735", _SSA, ST7735_open, ST7735_close, ST7735_read, ST7735_write, ST7735_lseek, ST7735_unlink, ST7735_rename);
   if(ret_val) return; // error
   fptr = fopen("st7745","w");
