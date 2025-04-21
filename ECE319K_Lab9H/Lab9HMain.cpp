@@ -19,6 +19,7 @@
 #include "Switch.h"
 #include "Sound.h"
 #include "images/images.h"
+#include <math.h>
 extern "C" void __disable_irq(void);
 extern "C" void __enable_irq(void);
 extern "C" void TIMG12_IRQHandler(void);
@@ -503,16 +504,21 @@ case PLAYING:
         rectanglesInitialized = true;
     }
     
-    // Draw background
+    // Define Barry's play region buffer (for layered drawing)
+    static uint16_t barryRegion[22 * 66]; // 22 pixels wide, 66 pixels high (55-120)
+    static int lastBarryY = -999; // Force initial draw
+    
+    // STEP 1: Redraw the scrolling background first
+    // Draw background (original implementation)
     ST7735_DrawBitmap(game.backgroundX, 121, bg_spaceship_2, 128, 82);
     // Draw wrapped part (if needed)
     if(game.backgroundX < 0) {
         ST7735_DrawBitmap(game.backgroundX + 128, 121, bg_spaceship_2, 128, 82);
     }
     
-{  // Scope block for variables
+{  // Scope block for Barry's movement and drawing
     // Define Barry's position and velocity
-    static int barryY = 120;              // Barry's Y position
+    static int barryY = 95;              // Barry's Y position - start in middle
     static float barryVelocity = 0;      // Barry's vertical velocity
     
     // Physics constants
@@ -554,12 +560,23 @@ case PLAYING:
         barryY = 120; // Bottom boundary (above floor)
         barryVelocity = 0; // Stop velocity when hitting floor
     }
-    if(prevBarryY != barryY) {
-    ST7735_FillRect(20, prevBarryY, 22, 29, ST7735_BLACK);
-}
-    // Draw Barry
+    
+    // STEP 2: Always draw Barry on every frame - no conditionals 
+    // First, clear Barry's area with a solid black rectangle (precise dimensions)
+    ST7735_FillRect(20, 55, 22, 66, ST7735_BLACK);
+    
+    // Then, draw Barry sprite at the current position
     ST7735_DrawBitmap(20, barryY, barry0, 22, 29);
-    prevBarryY = barryY;
+    
+    // STEP 3: Draw flame effect directly after Barry is drawn (if needed)
+    if(upState) {
+        // Draw a proper flame when the jetpack is active
+        ST7735_FillRect(24, barryY + 22, 3, 4, ST7735_YELLOW);
+    }
+    
+    // Update last position for next frame
+    lastBarryY = barryY;
+    
     // Display score and lives
     char scoreStr[20];
     if(game.language == English) {
