@@ -253,7 +253,7 @@ int main3(void){ // main3
 }
 
 // use main function to continuously play coin sound
-int main(void){ 
+int main4(void){ 
   __disable_irq();
   PLL_Init(); // set bus speed
   LaunchPad_Init();
@@ -273,18 +273,19 @@ int main(void){
   // Main loop - continuously play coin sound
   while(1){
     // Play the coin sound
-    Sound_Shoot();
-    
+    Sound_Coin();
+    //Sound_Explosion();
     // Toggle LED to show we're alive
     GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27
     
     // Small delay between sounds to avoid overlap
-    Clock_Delay1ms(300);
+    Clock_Delay1ms(500);
+    
   }
 }
 
 // ALL ST7735 OUTPUT MUST OCCUR IN MAIN
-int main5(void){ // final main
+int main(void){ // final main
   __disable_irq();
   PLL_Init(); // set bus speed
   LaunchPad_Init();

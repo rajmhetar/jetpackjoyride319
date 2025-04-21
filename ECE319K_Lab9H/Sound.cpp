@@ -9,7 +9,7 @@
 #include "sounds/sounds.h"
 #include "../inc/DAC5.h"
 #include "../inc/Timer.h"
-
+#include "../inc/Clock.h"
 // Global variables for sound playback
 const uint8_t *soundPtr;  // Pointer to current sound data
 uint32_t soundCount;      // Number of samples remaining
@@ -61,12 +61,29 @@ void Sound_Start(const uint8_t *pt, uint32_t count){
   SysTick_IntArm(80000000/11025, 1); // Configure SysTick for 11kHz
 }
 
+void Sound_Start(uint32_t period){
+   // set reload value
+   // write any value to VAL, cause reload
+   // write this
+   SysTick->LOAD = period-1;  // reload value
+   SysTick->VAL = 0;          // any write to current clears it
+}
+
+void Sound_Stop(void){
+ // either set LOAD to 0 or clear bit 1 in CTRL
+ SysTick->LOAD = 0;
+}
+
 // Individual sound functions
 void Sound_Shoot(void){
   Sound_Start(shoot, 4080);
 }
 
 void Sound_Coin(void){
-  Sound_Start(coin_recieved_230517, 36780);
+  Sound_Start(coinpickup, 19097);
+}
+
+void Sound_Explosion(void){
+  Sound_Start(explosion, 2000);
 }
 
