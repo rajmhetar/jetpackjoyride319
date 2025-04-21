@@ -20,6 +20,7 @@
 #include "Sound.h"
 #include "images/images.h"
 #include <math.h>
+#include <string.h>
 
 // Add collision detection function
 bool CheckCollision(int barryX, int barryY, int barryW, int barryH, int laserX, int laserY, int laserW, int laserH) {
@@ -57,11 +58,19 @@ typedef enum {English, Spanish, Portuguese, French} Language_t;
 // Game states
 typedef enum {
     LANGUAGE_SELECT,
+    DIFFICULTY_SELECT,
     START_SCREEN,
     GET_READY,
     PLAYING,
     GAME_OVER
 } GameState_t;
+
+// Define difficulty levels
+typedef enum {
+    EASY,
+    MEDIUM,
+    HARD
+} Difficulty_t;
 
 # define MAX_LASERS 5  // Maximum number of lasers active at once
 
@@ -108,6 +117,8 @@ typedef struct {
     int32_t backgroundX;  // for scrolling background
     uint32_t backgroundFrame;  // for cycling between backgrounds
     Language_t language;
+    Difficulty_t difficulty;   // New difficulty setting
+    float gameSpeed;           // Speed multiplier based on difficulty
     Laser_t lasers[MAX_LASERS];  // Array of lasers
     uint32_t laserSpawnTimer;    // Timer for spawning new lasers
     Coin_t coins[MAX_COINS];     // Array of coins - only for drawing
@@ -161,6 +172,34 @@ const char *Phrases[3][4]={
   {Language_English,Language_Spanish,Language_Portuguese,Language_French}
 };
 
+// Add a function to read directional buttons
+// Returns a 4-bit value where bit 0=right, 1=left, 2=down, 3=up
+uint32_t ReadDirectionalButtons(void) {
+  uint32_t buttons = 0;
+  
+  // Read all button states - using direct GPIO access
+  uint32_t rightState = (GPIOA->DIN31_0 & (1 << 17)) >> 17;  // Right button (PA17)
+  uint32_t leftState = (GPIOA->DIN31_0 & (1 << 28)) >> 28;   // Left button (PA28)
+  uint32_t downState = (GPIOA->DIN31_0 & (1 << 16)) >> 16;   // Down button (PA16)
+  uint32_t upState = (GPIOB->DIN31_0 & (1 << 13)) >> 13;     // Up button (PB13)
+  
+  // Combine into a single 4-bit value
+  buttons = (upState << 3) | (downState << 2) | (leftState << 1) | rightState;
+  
+  return buttons;
+}
+
+// Helper function to check if a specific button is pressed
+bool IsButtonPressed(uint32_t buttonMask) {
+  return (ReadDirectionalButtons() & buttonMask) != 0;
+}
+
+// Button masks for easy access
+#define BUTTON_RIGHT 0x01
+#define BUTTON_LEFT  0x02
+#define BUTTON_DOWN  0x04
+#define BUTTON_UP    0x08
+
 int main3(void){ // main3
   __disable_irq();
   PLL_Init(); // set bus speed
@@ -213,37 +252,39 @@ int main3(void){ // main3
   }
 }
 
-// use main4 to test sound outputs
-int main4(void){ uint32_t last=0,now;
+// use main function to continuously play coin sound
+int main(void){ 
   __disable_irq();
   PLL_Init(); // set bus speed
   LaunchPad_Init();
+  
+  // Configure all directional buttons as input with pull-down (positive logic)
+  IOMUX->SECCFG.PINCM[PA28INDEX] = 0x00050081; // Left button
+  IOMUX->SECCFG.PINCM[PB13INDEX] = 0x00050081; // Up button
+  IOMUX->SECCFG.PINCM[PA16INDEX] = 0x00050081; // Down button
+  IOMUX->SECCFG.PINCM[PA17INDEX] = 0x00050081; // Right button
+  
   Switch_Init(); // initialize switches
   LED_Init(); // initialize LED
   Sound_Init();  // initialize sound
   TExaS_Init(ADC0,6,0); // ADC1 channel 6 is PB20, TExaS scope
   __enable_irq();
+  
+  // Main loop - continuously play coin sound
   while(1){
-    now = Switch_In(); // one of your buttons
-    if((last == 0)&&(now == 1)){
-      Sound_Shoot(); // call one of your sounds
-    }
-    if((last == 0)&&(now == 2)){
-      Sound_Coin(); // play coin sound
-    }
-    if((last == 0)&&(now == 4)){
-       // call one of your sounds
-    }
-    if((last == 0)&&(now == 8)){
-       // call one of your sounds
-    }
-    last = now; // update last state
-    // modify this to test all your sounds
+    // Play the coin sound
+    Sound_Shoot();
+    
+    // Toggle LED to show we're alive
+    GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27
+    
+    // Small delay between sounds to avoid overlap
+    Clock_Delay1ms(300);
   }
 }
 
 // ALL ST7735 OUTPUT MUST OCCUR IN MAIN
-int main(void){ // final main
+int main5(void){ // final main
   __disable_irq();
   PLL_Init(); // set bus speed
   LaunchPad_Init();
@@ -275,6 +316,8 @@ int main(void){ // final main
   game.backgroundX = 0;
   game.backgroundFrame = 0;
   game.language = English;
+  game.difficulty = MEDIUM;      // Default to medium difficulty
+  game.gameSpeed = 1.0f;         // Default speed multiplier
   game.laserSpawnTimer = 0;
   game.coinSpawnTimer = 0;
   game.coinsCollected = 0;
@@ -297,407 +340,649 @@ int main(void){ // final main
         gameSemaphore = false;  // clear semaphore
         
         // Handle state-specific logic
-switch(game.currentState) {
-  // LANGUAGE_SELECT state
-// LANGUAGE_SELECT state
-case LANGUAGE_SELECT:
-    // Only clear screen when entering this state for the first time
-    static bool firstTimeLanguage = true;
-    if(firstTimeLanguage) {
-        ST7735_FillScreen(ST7735_BLACK);
-        firstTimeLanguage = false;
-    }
-    
-    // Draw language selection screen
-    ST7735_SetTextColor(ST7735_WHITE);
-    if(game.language == English) {
-        ST7735_DrawString(2, 4, (char*)"SELECT LANGUAGE:", ST7735_WHITE);
-        ST7735_DrawString(2, 6, (char*)"> ENGLISH", ST7735_Color565(0,255,0));
-        ST7735_DrawString(2, 8, (char*)"  SPANISH", ST7735_WHITE);
-    } else {
-        ST7735_DrawString(2, 4, (char*)"SELECT LANGUAGE:", ST7735_WHITE);
-        ST7735_DrawString(2, 6, (char*)"  ENGLISH", ST7735_WHITE);
-        ST7735_DrawString(2, 8, (char*)"> SPANISH", ST7735_SwapColor(ST7735_GREEN));
-    }
-    ST7735_DrawString(2, 12, (char*)"UP/DOWN TO SELECT", ST7735_WHITE);
-    ST7735_DrawString(2, 14, (char*)"RIGHT BTN TO ENTER", ST7735_WHITE);
-    
-    {  // Use a block to limit variable scope
-        // Read directional button states
-        uint32_t upState = (GPIOB->DIN31_0 & (1 << 13)) >> 13;
-        uint32_t downState = (GPIOA->DIN31_0 & (1 << 16)) >> 16;
-        uint32_t rightState = (GPIOA->DIN31_0 & (1 << 17)) >> 17;
-        
-        // Use directional buttons for language selection
-        if(upState) { 
-            game.language = English;
-            Clock_Delay1ms(100); // debounce
-        } else if(downState) { 
-            game.language = Spanish;
-            Clock_Delay1ms(100); // debounce
-        }
-        
-        // Use right button as "Fire" to select
-        if(rightState) {
-            game.currentState = START_SCREEN;
-            firstTimeLanguage = true; // Reset for next time
-            ST7735_FillScreen(ST7735_BLACK); // Clear screen before next state
-            Clock_Delay1ms(100); // debounce
-        }
-    }
-    break;
-
-case START_SCREEN:
-    // Only clear screen when entering this state for the first time
-    static bool firstTimeStart = true;
-    if(firstTimeStart) {
-        ST7735_FillScreen(ST7735_BLACK);
-        firstTimeStart = false;
-    }
-    
-    {  // Use a block to limit variable scope
-        // Read right button state
-        uint32_t rightState = (GPIOA->DIN31_0 & (1 << 17)) >> 17;
-        
-        // Display start screen based on selected language
-        if(game.language == English) {
-            ST7735_DrawString(2, 4, (char*)"JETPACK JOYRIDE", ST7735_WHITE);
-            ST7735_DrawString(2, 7, (char*)"RIGHT BTN TO START", ST7735_WHITE);
-        } else { // Spanish
-            ST7735_DrawString(2, 4, (char*)"PASEO EN JETPACK", ST7735_WHITE);
-            ST7735_DrawString(2, 7, (char*)"DERECHA PARA JUGAR", ST7735_WHITE);
-        }
-        
-        // Use right button to start the game
-        if(rightState) {
-            game.currentState = GET_READY;
-            firstTimeStart = true; // Reset for next time
-            ST7735_FillScreen(ST7735_BLACK); // Clear screen before next state
-            Clock_Delay1ms(100); // debounce
-        }
-    }
-    break;
-case GET_READY:
-    {
-        static bool firstTimeGetReady = true;
-        static uint32_t countdownTimer = 0;  // Timer for countdown
-        static uint32_t countdownValue = 3;  // Start at 3
-        
-        // Initialize when first entering this state
-        if(firstTimeGetReady) {
-            ST7735_FillScreen(ST7735_BLACK);
-            firstTimeGetReady = false;
-            countdownTimer = 0;
-            countdownValue = 3;
-            
-            // Setup the LEDs for countdown - initialize PB16 (red), PB12 (yellow), and PB17 (green)
-            IOMUX->SECCFG.PINCM[PB16INDEX] = 0x00000081;  // Red LED (PB16) as GPIO output
-            IOMUX->SECCFG.PINCM[PB12INDEX] = 0x00000081;  // Yellow LED (PB12) as GPIO output
-            IOMUX->SECCFG.PINCM[PB17INDEX] = 0x00000081;  // Green LED (PB17) as GPIO output
-            
-            // Set as outputs
-            GPIOB->DOE31_0 |= (1<<16)|(1<<12)|(1<<17);
-            
-            // Turn off all LEDs to start
-            GPIOB->DOUTCLR31_0 = (1<<16)|(1<<12)|(1<<17);
-            
-            // Draw game area background (similar to PLAYING state)
-            // Fill only the game area (40-120) with the dark rectangles
-            const uint16_t darkGrayColors[5] = {
-                ST7735_Color565(41, 41, 41),   // #292929
-                ST7735_Color565(43, 43, 43),   // #2b2b2b
-                ST7735_Color565(44, 44, 44),   // #2c2c2c
-                ST7735_Color565(45, 45, 45),   // #2d2d2d
-                ST7735_Color565(46, 46, 46)    // #2e2e2e
-            };
-            
-            // Fill top area (40-55 height) - this is the ceiling
-            for(int y = 40; y < 55; y += 8) {
-                for(int x = 0; x < 128; x += 8) {
-                    uint16_t randomColor = darkGrayColors[Random(5)];
-                    ST7735_FillRect(x, y, 8, 8, randomColor);
+        uint32_t buttons = ReadDirectionalButtons(); // Declare buttons once, outside the switch
+        switch(game.currentState) {
+            // LANGUAGE_SELECT state
+            case LANGUAGE_SELECT:
+                // Only clear screen when entering this state for the first time
+                static bool firstTimeLanguage = true;
+                if(firstTimeLanguage) {
+                    ST7735_FillScreen(ST7735_BLACK);
+                    firstTimeLanguage = false;
                 }
-            }
-            
-            // Fill bottom area (121-135 height) - this is the floor
-            for(int y = 121; y < 135; y += 8) {
-                for(int x = 0; x < 128; x += 8) {
-                    uint16_t randomColor = darkGrayColors[Random(5)];
-                    ST7735_FillRect(x, y, 8, 8, randomColor);
-                }
-            }
-        }
-        
-        // Draw the background similar to the playing state
-        ST7735_DrawBitmap(game.backgroundX, 121, bg_spaceship_2, 128, 82);
-        if(game.backgroundX < 0) {
-            ST7735_DrawBitmap(game.backgroundX + 128, 121, bg_spaceship_2, 128, 82);
-        }
-        
-        // Display "GET READY!" text at the top of the screen (outside game area)
-        if(game.language == English) {
-            // Clear the text area first
-            ST7735_FillRect(0, 0, 128, 38, ST7735_BLACK);
-            
-            // Draw title text
-            ST7735_DrawString(4, 2, (char*)"GET READY!", ST7735_WHITE);
-        } else { // Spanish
-            // Clear the text area first
-            ST7735_FillRect(0, 0, 128, 38, ST7735_BLACK);
-            
-            // Draw title text
-            ST7735_DrawString(4, 2, (char*)"PREPARATE!", ST7735_WHITE);
-        }
-        
-        // Display countdown number in the center of the screen (extra large)
-        char countdownStr[2];
-        sprintf(countdownStr, "%d", countdownValue);
-        
-        // Set countdown color based on the current value
-        uint16_t countdownColor;
-        if(countdownValue == 3) {
-            countdownColor = ST7735_RED;
-            // Turn on RED LED, turn off others
-            GPIOB->DOUTSET31_0 = (1<<16);
-            GPIOB->DOUTCLR31_0 = (1<<12)|(1<<17);
-        } else if(countdownValue == 2) {
-            countdownColor = ST7735_YELLOW;
-            // Turn on YELLOW LED, turn off others
-            GPIOB->DOUTSET31_0 = (1<<12);
-            GPIOB->DOUTCLR31_0 = (1<<16)|(1<<17);
-        } else {
-            countdownColor = ST7735_GREEN;
-            // Turn on GREEN LED, turn off others
-            GPIOB->DOUTSET31_0 = (1<<17);
-            GPIOB->DOUTCLR31_0 = (1<<16)|(1<<12);
-        }
-        
-        // Draw big countdown number at the bottom (outside game area)
-        // First clear the area
-        ST7735_FillRect(0, 136, 128, 24, ST7735_BLACK);
-        
-        // Draw the countdown number extra large in center bottom
-        ST7735_DrawString(6, 17, countdownStr, countdownColor);
-        
-        // Display instructions for controls outside gameplay area
-        if(game.language == English) {
-            ST7735_DrawString(1, 13, (char*)"UP BUTTON = FLY", ST7735_WHITE);
-        } else { // Spanish
-            ST7735_DrawString(0, 13, (char*)"ARRIBA = VOLAR", ST7735_WHITE);
-        }
-        
-        // Increment timer and update countdown
-        countdownTimer++;
-        
-        // Update the countdown every 30 frames (about 1 second at 30Hz)
-        if(countdownTimer >= 30) {
-            countdownTimer = 0;
-            countdownValue--;
-            
-            // Play sound for countdown
-            Sound_Coin();
-            
-            // If countdown reached zero, change state to PLAYING
-            if(countdownValue == 0) {
-                game.currentState = PLAYING;
-                firstTimeGetReady = true;
                 
-                // Reset game state for starting gameplay
-                game.score = 0;
-                
-                // Turn off all LEDs
-                GPIOB->DOUTCLR31_0 = (1<<16)|(1<<12)|(1<<17);
-                
-                // Clear screen before next state
-                ST7735_FillScreen(ST7735_BLACK);
-                
-                // Play start sound
-                Sound_Shoot();
-            }
-        }
-    }
-    break;
-
-case PLAYING:
-    // Update background X position (move left)
-    game.backgroundX -= 2;  // Adjust speed as needed
-    
-    // If background has scrolled completely off screen
-    if(game.backgroundX < -128) {
-        game.backgroundX = 0;      // Reset position
-    }
-    
-    // Only initialize the rectangles at the start
-    static bool rectanglesInitialized = false;
-    if(!rectanglesInitialized) {
-        // Create an array of the 5 dark gray color variations
-        const uint16_t darkGrayColors[5] = {
-            ST7735_Color565(41, 41, 41),   // #292929
-            ST7735_Color565(43, 43, 43),   // #2b2b2b
-            ST7735_Color565(44, 44, 44),   // #2c2c2c
-            ST7735_Color565(45, 45, 45),   // #2d2d2d
-            ST7735_Color565(46, 46, 46)    // #2e2e2e
-        };
-        
-        // Fill top area with rectangles (0-39 height)
-        for(int y = 0; y < 39; y += 8) {
-            for(int x = 0; x < 128; x += 8) {
-                uint16_t randomColor = darkGrayColors[Random(5)];
-                ST7735_FillRect(x, y, 8, 8, randomColor);
-            }
-        }
-        
-        // Fill bottom area with rectangles (121-160 height)
-        for(int y = 121; y < 160; y += 8) {
-            for(int x = 0; x < 128; x += 8) {
-                uint16_t randomColor = darkGrayColors[Random(5)];
-                ST7735_FillRect(x, y, 8, 8, randomColor);
-            }
-        }
-        
-        rectanglesInitialized = true;
-    }
-    
-    // Laser spawning and movement logic
-    {
-        // Increment spawn timer
-        game.laserSpawnTimer++;
-        
-        // Try to spawn a new laser every 30-90 frames (1-3 seconds at 30Hz)
-        if(game.laserSpawnTimer >= (30 + Random(60))) {
-            game.laserSpawnTimer = 0;
-            
-            // Try to find an inactive laser slot
-            for(int i = 0; i < MAX_LASERS; i++) {
-                if(!game.lasers[i].active) {
-                    // Spawn a new laser
-                    game.lasers[i].active = true;
-                    game.lasers[i].x = 128;  // Start at right edge
-                    
-                    // Define playable area bounds (between ceiling and floor)
-                    const int ceilingY = 55;  // Top boundary (ceiling)
-                    const int floorY = 120;   // Bottom boundary (floor)
-                    
-                    // Determine laser type first
-                    game.lasers[i].type = static_cast<LaserType_t>(Random(3)); // Random laser type
-                    
-                    // Random size between 10 and 24
-                    game.lasers[i].size = Random(15) + 10;
-                    
-                    // Adjust Y position based on laser type to keep within bounds
-                    switch(game.lasers[i].type) {
-                        case HORIZONTAL:
-                            // For horizontal lasers, account for height (4 pixels)
-                            game.lasers[i].y = ceilingY + 2 + Random(floorY - ceilingY - 4);
-                            break;
-                        case VERTICAL:
-                            // For vertical lasers, ensure the full height stays within bounds
-                            game.lasers[i].y = ceilingY + Random(floorY - ceilingY - game.lasers[i].size);
-                            break;
-                        case DIAGONAL:
-                            // For diagonal lasers, ensure they stay within bounds
-                            game.lasers[i].y = ceilingY + Random(floorY - ceilingY - game.lasers[i].size);
-                            break;
-                    }
-                    
-                    break;  // Only spawn one laser at a time
-                }
-            }
-        }
-        
-        // Move and draw active lasers
-        for(int i = 0; i < MAX_LASERS; i++) {
-            if(game.lasers[i].active) {
-                // Move laser left with background
-                game.lasers[i].x -= 2;  // Same speed as background
-                
-                // If laser moves off screen, deactivate it
-                if(game.lasers[i].x < -game.lasers[i].size) {
-                    game.lasers[i].active = false;
+                // Draw language selection screen
+                ST7735_SetTextColor(ST7735_WHITE);
+                if(game.language == English) {
+                    ST7735_DrawString(2, 4, (char*)"SELECT LANGUAGE:", ST7735_WHITE);
+                    ST7735_DrawString(2, 6, (char*)"> ENGLISH", ST7735_Color565(0,255,0));
+                    ST7735_DrawString(2, 8, (char*)"  SPANISH", ST7735_WHITE);
                 } else {
-                    // Draw laser based on its type
-                    switch(game.lasers[i].type) {
-                        case HORIZONTAL:
-                            // Draw a wider horizontal laser with a glowing effect
-                            ST7735_FillRect(game.lasers[i].x, game.lasers[i].y - 1, game.lasers[i].size, 4, ST7735_RED);
-                            ST7735_FillRect(game.lasers[i].x, game.lasers[i].y, game.lasers[i].size, 2, ST7735_Color565(255, 100, 100)); // Brighter center
-                            break;
-                        case VERTICAL:
-                            // Draw a wider vertical laser with a glowing effect
-                            ST7735_FillRect(game.lasers[i].x - 1, game.lasers[i].y, 4, game.lasers[i].size, ST7735_RED);
-                            ST7735_FillRect(game.lasers[i].x, game.lasers[i].y, 2, game.lasers[i].size, ST7735_Color565(255, 100, 100)); // Brighter center
-                            break;
-                        case DIAGONAL:
-                            // Draw a thicker diagonal laser with enhanced glowing effect
-                            for(int j = 0; j < game.lasers[i].size; j++) {
-                                // Draw thicker diagonal laser with multiple pixels
-                                // Main diagonal line (3 pixels thick)
-                                ST7735_DrawPixel(game.lasers[i].x + j, game.lasers[i].y + j, ST7735_Color565(255, 100, 100)); // Center bright pixel
-                                ST7735_DrawPixel(game.lasers[i].x + j - 1, game.lasers[i].y + j, ST7735_RED); // Left
-                                ST7735_DrawPixel(game.lasers[i].x + j + 1, game.lasers[i].y + j, ST7735_RED); // Right
-                                ST7735_DrawPixel(game.lasers[i].x + j, game.lasers[i].y + j - 1, ST7735_RED); // Above
-                                ST7735_DrawPixel(game.lasers[i].x + j, game.lasers[i].y + j + 1, ST7735_RED); // Below
-                            }
-                            break;
+                    ST7735_DrawString(2, 4, (char*)"SELECT LANGUAGE:", ST7735_WHITE);
+                    ST7735_DrawString(2, 6, (char*)"  ENGLISH", ST7735_WHITE);
+                    ST7735_DrawString(2, 8, (char*)"> SPANISH", ST7735_SwapColor(ST7735_GREEN));
+                }
+                ST7735_DrawString(2, 12, (char*)"UP/DOWN TO SELECT", ST7735_WHITE);
+                ST7735_DrawString(2, 14, (char*)"RIGHT BTN TO ENTER", ST7735_WHITE);
+                
+                // Use directional buttons for language selection
+                if(buttons & BUTTON_UP) { 
+                    game.language = English;
+                    Clock_Delay1ms(100); // debounce
+                } else if(buttons & BUTTON_DOWN) { 
+                    game.language = Spanish;
+                    Clock_Delay1ms(100); // debounce
+                }
+                
+                // Use right button as "Fire" to select
+                if(buttons & BUTTON_RIGHT) {
+                    game.currentState = DIFFICULTY_SELECT; // Go to difficulty select instead of start screen
+                    firstTimeLanguage = true; // Reset for next time
+                    ST7735_FillScreen(ST7735_BLACK); // Clear screen before next state
+                    Clock_Delay1ms(100); // debounce
+                }
+                break;
+
+            case DIFFICULTY_SELECT:
+                {
+                    // Only clear screen when entering this state for the first time
+                    static bool firstTimeDifficulty = true;
+                    if(firstTimeDifficulty) {
+                        ST7735_FillScreen(ST7735_BLACK);
+                        firstTimeDifficulty = false;
+                    }
+                    
+                    // Read slidepot value for difficulty selection
+                    uint32_t slidePotValue = Sensor.In();
+                    
+                    // Map slidepot value (0-4095) to difficulty level
+                    // 0-1365 = Easy, 1366-2730 = Medium, 2731-4095 = Hard
+                    if(slidePotValue < 1365) {
+                        game.difficulty = EASY;
+                        game.gameSpeed = 0.7f;  // 70% speed for easy mode
+                    } else if(slidePotValue < 2730) {
+                        game.difficulty = MEDIUM;
+                        game.gameSpeed = 1.0f;  // 100% speed for medium mode
+                    } else {
+                        game.difficulty = HARD;
+                        game.gameSpeed = 1.5f;  // 150% speed for hard mode
+                    }
+                    
+                    // Draw difficulty selection screen
+                    if(game.language == English) {
+                        ST7735_DrawString(2, 2, (char*)"SELECT DIFFICULTY:", ST7735_WHITE);
+                        ST7735_DrawString(2, 5, (char*)"EASY", (game.difficulty == EASY) ? ST7735_GREEN : ST7735_WHITE);
+                        ST7735_DrawString(2, 7, (char*)"MEDIUM", (game.difficulty == MEDIUM) ? ST7735_YELLOW : ST7735_WHITE);
+                        ST7735_DrawString(2, 9, (char*)"HARD", (game.difficulty == HARD) ? ST7735_RED : ST7735_WHITE);
+                        ST7735_DrawString(2, 12, (char*)"USE SLIDEPOT", ST7735_WHITE);
+                        ST7735_DrawString(2, 14, (char*)"RIGHT BTN TO SELECT", ST7735_WHITE);
+                    } else { // Spanish
+                        ST7735_DrawString(2, 2, (char*)"SELECCIONAR DIFICULTAD:", ST7735_WHITE);
+                        ST7735_DrawString(2, 5, (char*)"FACIL", (game.difficulty == EASY) ? ST7735_GREEN : ST7735_WHITE);
+                        ST7735_DrawString(2, 7, (char*)"MEDIO", (game.difficulty == MEDIUM) ? ST7735_YELLOW : ST7735_WHITE);
+                        ST7735_DrawString(2, 9, (char*)"DIFICIL", (game.difficulty == HARD) ? ST7735_RED : ST7735_WHITE);
+                        ST7735_DrawString(2, 12, (char*)"USAR DESLIZADOR", ST7735_WHITE);
+                        ST7735_DrawString(2, 14, (char*)"DERECHA PARA SELECCIONAR", ST7735_WHITE);
+                    }
+                    
+                    // Show slidepot position visually
+                    int sliderPos = slidePotValue * 100 / 4095;  // 0-100 position
+                    // Clear slider area
+                    ST7735_FillRect(20, 110, 100, 10, ST7735_BLACK);
+                    // Draw slider background
+                    ST7735_FillRect(20, 110, 100, 10, ST7735_BLUE);
+                    // Draw slider position indicator
+                    ST7735_FillRect(20 + sliderPos, 108, 5, 14, ST7735_WHITE);
+                    
+                    // Use right button to confirm selection
+                    if(buttons & BUTTON_RIGHT) {
+                        game.currentState = START_SCREEN;
+                        firstTimeDifficulty = true; // Reset for next time
+                        ST7735_FillScreen(ST7735_BLACK); // Clear screen before next state
+                        Clock_Delay1ms(100); // debounce
                     }
                 }
-            }
-        }
-    }
-    
-    // Coin generation and drawing logic ONLY - no collection functionality
-    {
-        // Increment coin spawn timer
-        game.coinSpawnTimer++;
-        
-        // Try to spawn a new coin formation every 60-100 frames
-        if(game.coinSpawnTimer >= (60 + Random(40))) {
-            game.coinSpawnTimer = 0;
-            
-            // Define playable area bounds (between ceiling and floor)
-            const int ceilingY = 55;  // Top boundary (ceiling)
-            const int floorY = 120;   // Bottom boundary (floor)
-            const int coinWidth = 6;  // Coin width
-            const int coinHeight = 6; // Coin height
-            const int spacing = 4;    // Spacing between coins in a formation
-            
-            // Count active coins
-            int activeCoins = 0;
-            for(int i = 0; i < MAX_COINS; i++) {
-                if(game.coins[i].active) {
-                    activeCoins++;
-                }
-            }
-            
-            // Only spawn new coins if we have space
-            if(activeCoins < MAX_COINS - 3) { // Ensure we have space for at least 3 coins
-                // Randomly choose formation type (60% horizontal, 40% vertical)
-                CoinFormation_t formation = (Random(100) < 60) ? HORIZONTAL_LINE : VERTICAL_LINE;
-                
-                // Generate unique formation ID for grouping coins
-                int32_t formationId = Random32();
-                
-                // Choose formation length (3-5 coins)
-                int formationLength = 3 + Random(3);
-                if(formationLength > (MAX_COINS - activeCoins)) {
-                    formationLength = MAX_COINS - activeCoins;
+                break;
+
+            case START_SCREEN:
+                // Only clear screen when entering this state for the first time
+                static bool firstTimeStart = true;
+                if(firstTimeStart) {
+                    ST7735_FillScreen(ST7735_BLACK);
+                    firstTimeStart = false;
                 }
                 
-                // Calculate formation starting position
-                int startX = 128; // Start from right edge
-                int startY;
-                
-                if(formation == HORIZONTAL_LINE) {
-                    // For horizontal formation, pick a random Y in valid range
-                    startY = ceilingY + 10 + Random(floorY - ceilingY - 20 - coinHeight);
-                } else { // VERTICAL_LINE
-                    // For vertical formation, ensure entire line fits within screen height
-                    int verticalSpace = (formationLength * (coinHeight + spacing)) - spacing;
-                    startY = ceilingY + 10 + Random(floorY - ceilingY - 20 - verticalSpace);
+                // Display start screen based on selected language
+                if(game.language == English) {
+                    ST7735_DrawString(2, 4, (char*)"JETPACK JOYRIDE", ST7735_WHITE);
+                    ST7735_DrawString(2, 7, (char*)"RIGHT BTN TO START", ST7735_WHITE);
+                } else { // Spanish
+                    ST7735_DrawString(2, 4, (char*)"PASEO EN JETPACK", ST7735_WHITE);
+                    ST7735_DrawString(2, 7, (char*)"DERECHA PARA JUGAR", ST7735_WHITE);
                 }
                 
-                // Check if the formation would overlap with any lasers
-                bool overlapsLaser = false;
+                // Read directional buttons
+                
+                // Use right button to start the game
+                if(buttons & BUTTON_RIGHT) {
+                    game.currentState = GET_READY;
+                    firstTimeStart = true; // Reset for next time
+                    ST7735_FillScreen(ST7735_BLACK); // Clear screen before next state
+                    Clock_Delay1ms(100); // debounce
+                }
+                break;
+            case GET_READY:
+                {
+                    static bool firstTimeGetReady = true;
+                    static uint32_t countdownTimer = 0;  // Timer for countdown
+                    static uint32_t countdownValue = 3;  // Start at 3
+                    
+                    // Initialize when first entering this state
+                    if(firstTimeGetReady) {
+                        ST7735_FillScreen(ST7735_BLACK);
+                        firstTimeGetReady = false;
+                        countdownTimer = 0;
+                        countdownValue = 3;
+                        
+                        // Setup the LEDs for countdown - initialize PB16 (red), PB12 (yellow), and PB17 (green)
+                        IOMUX->SECCFG.PINCM[PB16INDEX] = 0x00000081;  // Red LED (PB16) as GPIO output
+                        IOMUX->SECCFG.PINCM[PB12INDEX] = 0x00000081;  // Yellow LED (PB12) as GPIO output
+                        IOMUX->SECCFG.PINCM[PB17INDEX] = 0x00000081;  // Green LED (PB17) as GPIO output
+                        
+                        // Set as outputs
+                        GPIOB->DOE31_0 |= (1<<16)|(1<<12)|(1<<17);
+                        
+                        // Turn off all LEDs to start
+                        GPIOB->DOUTCLR31_0 = (1<<16)|(1<<12)|(1<<17);
+                        
+                        // Draw game area background (similar to PLAYING state)
+                        // Fill only the game area (40-120) with the dark rectangles
+                        const uint16_t darkGrayColors[5] = {
+                            ST7735_Color565(41, 41, 41),   // #292929
+                            ST7735_Color565(43, 43, 43),   // #2b2b2b
+                            ST7735_Color565(44, 44, 44),   // #2c2c2c
+                            ST7735_Color565(45, 45, 45),   // #2d2d2d
+                            ST7735_Color565(46, 46, 46)    // #2e2e2e
+                        };
+                        
+                        // Fill top area (40-55 height) - this is the ceiling
+                        for(int y = 40; y < 55; y += 8) {
+                            for(int x = 0; x < 128; x += 8) {
+                                uint16_t randomColor = darkGrayColors[Random(5)];
+                                ST7735_FillRect(x, y, 8, 8, randomColor);
+                            }
+                        }
+                        
+                        // Fill bottom area (121-135 height) - this is the floor
+                        for(int y = 121; y < 135; y += 8) {
+                            for(int x = 0; x < 128; x += 8) {
+                                uint16_t randomColor = darkGrayColors[Random(5)];
+                                ST7735_FillRect(x, y, 8, 8, randomColor);
+                            }
+                        }
+                    }
+                    
+                    // Draw the background similar to the playing state
+                    ST7735_DrawBitmap(game.backgroundX, 121, bg_spaceship_2, 128, 82);
+                    if(game.backgroundX < 0) {
+                        ST7735_DrawBitmap(game.backgroundX + 128, 121, bg_spaceship_2, 128, 82);
+                    }
+                    
+                    // Display "GET READY!" text at the top of the screen (outside game area)
+                    if(game.language == English) {
+                        // Clear the text area first
+                        ST7735_FillRect(0, 0, 128, 38, ST7735_BLACK);
+                        
+                        // Draw title text
+                        ST7735_DrawString(4, 2, (char*)"GET READY!", ST7735_WHITE);
+                    } else { // Spanish
+                        // Clear the text area first
+                        ST7735_FillRect(0, 0, 128, 38, ST7735_BLACK);
+                        
+                        // Draw title text
+                        ST7735_DrawString(4, 2, (char*)"PREPARATE!", ST7735_WHITE);
+                    }
+                    
+                    // Display countdown number in the center of the screen (extra large)
+                    char countdownStr[2];
+                    sprintf(countdownStr, "%d", countdownValue);
+                    
+                    // Set countdown color based on the current value
+                    uint16_t countdownColor;
+                    if(countdownValue == 3) {
+                        countdownColor = ST7735_RED;
+                        // Turn on RED LED, turn off others
+                        GPIOB->DOUTSET31_0 = (1<<16);
+                        GPIOB->DOUTCLR31_0 = (1<<12)|(1<<17);
+                    } else if(countdownValue == 2) {
+                        countdownColor = ST7735_YELLOW;
+                        // Turn on YELLOW LED, turn off others
+                        GPIOB->DOUTSET31_0 = (1<<12);
+                        GPIOB->DOUTCLR31_0 = (1<<16)|(1<<17);
+                    } else {
+                        countdownColor = ST7735_GREEN;
+                        // Turn on GREEN LED, turn off others
+                        GPIOB->DOUTSET31_0 = (1<<17);
+                        GPIOB->DOUTCLR31_0 = (1<<16)|(1<<12);
+                    }
+                    
+                    // Draw big countdown number at the bottom (outside game area)
+                    // First clear the area
+                    ST7735_FillRect(0, 136, 128, 24, ST7735_BLACK);
+                    
+                    // Draw the countdown number extra large in center bottom
+                    ST7735_DrawString(6, 17, countdownStr, countdownColor);
+                    
+                    // Display instructions for controls outside gameplay area
+                    if(game.language == English) {
+                        ST7735_DrawString(1, 13, (char*)"UP BUTTON = FLY", ST7735_WHITE);
+                    } else { // Spanish
+                        ST7735_DrawString(0, 13, (char*)"ARRIBA = VOLAR", ST7735_WHITE);
+                    }
+                    
+                    // Increment timer and update countdown
+                    countdownTimer++;
+                    
+                    // Update the countdown every 30 frames (about 1 second at 30Hz)
+                    if(countdownTimer >= 30) {
+                        countdownTimer = 0;
+                        countdownValue--;
+                        
+                        // Play sound for countdown
+                        Sound_Coin();
+                        
+                        // If countdown reached zero, change state to PLAYING
+                        if(countdownValue == 0) {
+                            game.currentState = PLAYING;
+                            firstTimeGetReady = true;
+                            
+                            // Reset game state for starting gameplay
+                            game.score = 0;
+                            
+                            // Turn off all LEDs
+                            GPIOB->DOUTCLR31_0 = (1<<16)|(1<<12)|(1<<17);
+                            
+                            // Clear screen before next state
+                            ST7735_FillScreen(ST7735_BLACK);
+                            
+                            // Play start sound
+                            Sound_Shoot();
+                        }
+                    }
+                }
+                break;
+
+            case PLAYING:
+                // Update background X position (move left)
+                game.backgroundX -= 2 * game.gameSpeed;  // Adjust speed as needed
+                
+                // If background has scrolled completely off screen
+                if(game.backgroundX < -128) {
+                    game.backgroundX = 0;      // Reset position
+                }
+                
+                // Only initialize the rectangles at the start
+                static bool rectanglesInitialized = false;
+                if(!rectanglesInitialized) {
+                    // Create an array of the 5 dark gray color variations
+                    const uint16_t darkGrayColors[5] = {
+                        ST7735_Color565(41, 41, 41),   // #292929
+                        ST7735_Color565(43, 43, 43),   // #2b2b2b
+                        ST7735_Color565(44, 44, 44),   // #2c2c2c
+                        ST7735_Color565(45, 45, 45),   // #2d2d2d
+                        ST7735_Color565(46, 46, 46)    // #2e2e2e
+                    };
+                    
+                    // Fill top area with rectangles (0-39 height)
+                    for(int y = 0; y < 39; y += 8) {
+                        for(int x = 0; x < 128; x += 8) {
+                            uint16_t randomColor = darkGrayColors[Random(5)];
+                            ST7735_FillRect(x, y, 8, 8, randomColor);
+                        }
+                    }
+                    
+                    // Fill bottom area with rectangles (121-160 height)
+                    for(int y = 121; y < 160; y += 8) {
+                        for(int x = 0; x < 128; x += 8) {
+                            uint16_t randomColor = darkGrayColors[Random(5)];
+                            ST7735_FillRect(x, y, 8, 8, randomColor);
+                        }
+                    }
+                    
+                    rectanglesInitialized = true;
+                }
+                
+                // Laser spawning and movement logic
+                {
+                    // Increment spawn timer
+                    game.laserSpawnTimer++;
+                    
+                    // Try to spawn a new laser every 30-90 frames (1-3 seconds at 30Hz)
+                    if(game.laserSpawnTimer >= (30 + Random(60))) {
+                        game.laserSpawnTimer = 0;
+                        
+                        // Try to find an inactive laser slot
+                        for(int i = 0; i < MAX_LASERS; i++) {
+                            if(!game.lasers[i].active) {
+                                // Spawn a new laser
+                                game.lasers[i].active = true;
+                                game.lasers[i].x = 128;  // Start at right edge
+                                
+                                // Define playable area bounds (between ceiling and floor)
+                                const int ceilingY = 55;  // Top boundary (ceiling)
+                                const int floorY = 120;   // Bottom boundary (floor)
+                                
+                                // Determine laser type first
+                                game.lasers[i].type = static_cast<LaserType_t>(Random(3)); // Random laser type
+                                
+                                // Random size between 10 and 24
+                                game.lasers[i].size = Random(15) + 10;
+                                
+                                // Adjust Y position based on laser type to keep within bounds
+                                switch(game.lasers[i].type) {
+                                    case HORIZONTAL:
+                                        // For horizontal lasers, account for height (4 pixels)
+                                        game.lasers[i].y = ceilingY + 2 + Random(floorY - ceilingY - 4);
+                                        break;
+                                    case VERTICAL:
+                                        // For vertical lasers, ensure the full height stays within bounds
+                                        game.lasers[i].y = ceilingY + Random(floorY - ceilingY - game.lasers[i].size);
+                                        break;
+                                    case DIAGONAL:
+                                        // For diagonal lasers, ensure they stay within bounds
+                                        game.lasers[i].y = ceilingY + Random(floorY - ceilingY - game.lasers[i].size);
+                                        break;
+                                }
+                                
+                                break;  // Only spawn one laser at a time
+                            }
+                        }
+                    }
+                    
+                    // Move and draw active lasers
+                    for(int i = 0; i < MAX_LASERS; i++) {
+                        if(game.lasers[i].active) {
+                            // Move laser left with background, speed based on difficulty
+                            game.lasers[i].x -= 2 * game.gameSpeed;  // Adjusted for difficulty
+                            
+                            // If laser moves off screen, deactivate it
+                            if(game.lasers[i].x < -game.lasers[i].size) {
+                                game.lasers[i].active = false;
+                            } else {
+                                // Draw laser based on its type
+                                switch(game.lasers[i].type) {
+                                    case HORIZONTAL:
+                                        // Draw a wider horizontal laser with a glowing effect
+                                        ST7735_FillRect(game.lasers[i].x, game.lasers[i].y - 1, game.lasers[i].size, 4, ST7735_RED);
+                                        ST7735_FillRect(game.lasers[i].x, game.lasers[i].y, game.lasers[i].size, 2, ST7735_Color565(255, 100, 100)); // Brighter center
+                                        break;
+                                    case VERTICAL:
+                                        // Draw a wider vertical laser with a glowing effect
+                                        ST7735_FillRect(game.lasers[i].x - 1, game.lasers[i].y, 4, game.lasers[i].size, ST7735_RED);
+                                        ST7735_FillRect(game.lasers[i].x, game.lasers[i].y, 2, game.lasers[i].size, ST7735_Color565(255, 100, 100)); // Brighter center
+                                        break;
+                                    case DIAGONAL:
+                                        // Draw a thicker diagonal laser with enhanced glowing effect
+                                        for(int j = 0; j < game.lasers[i].size; j++) {
+                                            // Draw thicker diagonal laser with multiple pixels
+                                            // Main diagonal line (3 pixels thick)
+                                            ST7735_DrawPixel(game.lasers[i].x + j, game.lasers[i].y + j, ST7735_Color565(255, 100, 100)); // Center bright pixel
+                                            ST7735_DrawPixel(game.lasers[i].x + j - 1, game.lasers[i].y + j, ST7735_RED); // Left
+                                            ST7735_DrawPixel(game.lasers[i].x + j + 1, game.lasers[i].y + j, ST7735_RED); // Right
+                                            ST7735_DrawPixel(game.lasers[i].x + j, game.lasers[i].y + j - 1, ST7735_RED); // Above
+                                            ST7735_DrawPixel(game.lasers[i].x + j, game.lasers[i].y + j + 1, ST7735_RED); // Below
+                                        }
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Coin generation and drawing logic ONLY - no collection functionality
+                {
+                    // Increment coin spawn timer
+                    game.coinSpawnTimer++;
+                    
+                    // Try to spawn a new coin formation every 60-100 frames
+                    if(game.coinSpawnTimer >= (60 + Random(40))) {
+                        game.coinSpawnTimer = 0;
+                        
+                        // Define playable area bounds (between ceiling and floor)
+                        const int ceilingY = 55;  // Top boundary (ceiling)
+                        const int floorY = 120;   // Bottom boundary (floor)
+                        const int coinWidth = 6;  // Coin width
+                        const int coinHeight = 6; // Coin height
+                        const int spacing = 4;    // Spacing between coins in a formation
+                        
+                        // Count active coins
+                        int activeCoins = 0;
+                        for(int i = 0; i < MAX_COINS; i++) {
+                            if(game.coins[i].active) {
+                                activeCoins++;
+                            }
+                        }
+                        
+                        // Only spawn new coins if we have space
+                        if(activeCoins < MAX_COINS - 3) { // Ensure we have space for at least 3 coins
+                            // Randomly choose formation type (60% horizontal, 40% vertical)
+                            CoinFormation_t formation = (Random(100) < 60) ? HORIZONTAL_LINE : VERTICAL_LINE;
+                            
+                            // Generate unique formation ID for grouping coins
+                            int32_t formationId = Random32();
+                            
+                            // Choose formation length (3-5 coins)
+                            int formationLength = 3 + Random(3);
+                            if(formationLength > (MAX_COINS - activeCoins)) {
+                                formationLength = MAX_COINS - activeCoins;
+                            }
+                            
+                            // Calculate formation starting position
+                            int startX = 128; // Start from right edge
+                            int startY;
+                            
+                            if(formation == HORIZONTAL_LINE) {
+                                // For horizontal formation, pick a random Y in valid range
+                                startY = ceilingY + 10 + Random(floorY - ceilingY - 20 - coinHeight);
+                            } else { // VERTICAL_LINE
+                                // For vertical formation, ensure entire line fits within screen height
+                                int verticalSpace = (formationLength * (coinHeight + spacing)) - spacing;
+                                startY = ceilingY + 10 + Random(floorY - ceilingY - 20 - verticalSpace);
+                            }
+                            
+                            // Check if the formation would overlap with any lasers
+                            bool overlapsLaser = false;
+                            for(int i = 0; i < MAX_LASERS; i++) {
+                                if(game.lasers[i].active) {
+                                    int laserX = game.lasers[i].x;
+                                    int laserY = game.lasers[i].y;
+                                    int laserWidth = 0;
+                                    int laserHeight = 0;
+                                    
+                                    // Set laser dimensions based on its type
+                                    switch(game.lasers[i].type) {
+                                        case HORIZONTAL:
+                                            laserWidth = game.lasers[i].size;
+                                            laserHeight = 4;
+                                            break;
+                                        case VERTICAL:
+                                            laserWidth = 4;
+                                            laserHeight = game.lasers[i].size;
+                                            break;
+                                        case DIAGONAL:
+                                            laserWidth = game.lasers[i].size * 0.7;
+                                            laserHeight = game.lasers[i].size * 0.7;
+                                            break;
+                                    }
+                                    
+                                    // Check if formation would overlap with this laser
+                                    if(formation == HORIZONTAL_LINE) {
+                                        int formationWidth = (formationLength * (coinWidth + spacing)) - spacing;
+                                        if(startX < laserX + laserWidth + 20 && // Add buffer zone
+                                           startX + formationWidth > laserX - 20 &&
+                                           startY < laserY + laserHeight + 5 &&
+                                           startY + coinHeight > laserY - 5) {
+                                            overlapsLaser = true;
+                                            break;
+                                        }
+                                    } else { // VERTICAL_LINE
+                                        int formationHeight = (formationLength * (coinHeight + spacing)) - spacing;
+                                        if(startX < laserX + laserWidth + 20 && // Add buffer zone
+                                           startX + coinWidth > laserX - 20 &&
+                                           startY < laserY + laserHeight + 5 &&
+                                           startY + formationHeight > laserY - 5) {
+                                            overlapsLaser = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // If no overlap with lasers, create the formation
+                            if(!overlapsLaser) {
+                                // Find free slots and create formation
+                                int coinsPlaced = 0;
+                                for(int i = 0; i < MAX_COINS && coinsPlaced < formationLength; i++) {
+                                    if(!game.coins[i].active) {
+                                        game.coins[i].active = true;
+                                        game.coins[i].formation = formation;
+                                        game.coins[i].formationId = formationId;
+                                        
+                                        if(formation == HORIZONTAL_LINE) {
+                                            // Place coins in horizontal line
+                                            game.coins[i].x = startX + (coinsPlaced * (coinWidth + spacing));
+                                            game.coins[i].y = startY;
+                                        } else { // VERTICAL_LINE
+                                            // Place coins in vertical line
+                                            game.coins[i].x = startX;
+                                            game.coins[i].y = startY + (coinsPlaced * (coinHeight + spacing));
+                                        }
+                                        
+                                        coinsPlaced++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Move and draw active coins
+                    for(int i = 0; i < MAX_COINS; i++) {
+                        if(game.coins[i].active) {
+                            // Move coin left with background, speed based on difficulty
+                            game.coins[i].x -= 2 * game.gameSpeed;  // Adjusted for difficulty
+                            
+                            // If coin moves off screen, deactivate it
+                            if(game.coins[i].x < -6) {  // 6 is the width of coin0
+                                game.coins[i].active = false;
+                            } else {
+                                // Draw the coin using the coin0 bitmap (6x6 pixels)
+                                ST7735_DrawBitmap(game.coins[i].x, game.coins[i].y, coin0, 6, 6);
+                            }
+                        }
+                    }
+                }
+                
+            {  // Scope block for Barry's movement and drawing
+                // Define Barry's position and velocity
+                static int barryY = 95;              // Barry's Y position - start in middle
+                static float barryVelocity = 0;      // Barry's vertical velocity
+                static int lastBarryY = -999;        // Track Barry's last position
+                
+                // Physics constants
+                static const float GRAVITY = 0.3;    // Gravity acceleration
+                static const float THRUST = -0.6;    // Upward acceleration when button pressed
+                static const float TERMINAL_VEL = 4; // Maximum falling speed
+                static const float MAX_THRUST = -3;  // Maximum upward speed
+                
+                // Read directional buttons
+                
+                // Apply acceleration based on button state
+                if(buttons & BUTTON_UP) {
+                    barryVelocity += THRUST;  // Apply upward thrust (negative is up)
+                    
+                    // Limit upward velocity
+                    if(barryVelocity < MAX_THRUST) {
+                        barryVelocity = MAX_THRUST;
+                    }
+                } else {
+                    // Apply gravity
+                    barryVelocity += GRAVITY;
+                    
+                    // Limit falling velocity
+                    if(barryVelocity > TERMINAL_VEL) {
+                        barryVelocity = TERMINAL_VEL;
+                    }
+                }
+                
+                // Update Barry's position using his velocity
+                barryY += (int)barryVelocity;
+                
+                // Keep Barry within screen bounds
+                if(barryY < 70) {  // Changed from 69 to 55 to account for 37-pixel sprite
+                    barryY = 70;  // Top boundary (below ceiling)
+                    barryVelocity = 0; // Stop velocity when hitting ceiling
+                }
+                if(barryY > 120) {
+                    barryY = 120; // Bottom boundary (above floor)
+                    barryVelocity = 0; // Stop velocity when hitting floor
+                }
+                
+                // Disable interrupts during drawing to prevent tearing
+                __disable_irq();
+                
+                // Only update if Barry moved or background scrolled
+                if(barryY != lastBarryY || game.backgroundX % 2 == 0) {
+                    // Draw the scrolling background
+                    ST7735_DrawBitmap(game.backgroundX, 121, bg_spaceship_2, 128, 82);
+                    if(game.backgroundX < 0) {
+                        ST7735_DrawBitmap(game.backgroundX + 128, 121, bg_spaceship_2, 128, 82);
+                    }
+                    
+                    // Draw Barry
+                    ST7735_DrawBitmap(15, barryY, barry3, 18, 30);
+                }
+                
+                // Re-enable interrupts
+                __enable_irq();
+                
+                // Update last position for next frame
+                lastBarryY = barryY;
+                
+                // Display score and lives
+                char scoreStr[20];
+                char coinStr[20];
+                if(game.language == English) {
+                    sprintf(scoreStr, "%dm", game.score);
+                    sprintf(coinStr, "Coins: %d", game.coinsCollected);
+                    ST7735_DrawString(0, 0, scoreStr, ST7735_WHITE);
+                    ST7735_DrawString(9, 0, coinStr, ST7735_WHITE);
+                } else { // Spanish
+                    sprintf(scoreStr, "Puntos: %d", game.score);
+                    sprintf(coinStr, "Monedas: %d", game.coinsCollected);
+                    ST7735_DrawString(0, 0, scoreStr, ST7735_WHITE);
+                    ST7735_DrawString(0, 1, coinStr, ST7735_WHITE);
+                }
+                
+                // Increment score every frame, adjusted for difficulty
+                // Higher difficulty = faster score increase to match faster gameplay
+                game.score += (uint32_t)(1 * game.gameSpeed);  // Score increases faster at higher difficulties
+                
+                // Collision detection between Barry and lasers
+                const int BARRY_X = 15;          // Barry's X position (fixed)
+                const int BARRY_WIDTH = 18;      // Barry's width
+                const int BARRY_HEIGHT = 30;     // Barry's height
+                
+                // Create a smaller hitbox for Barry (use a 60% of visual size)
+                // This creates a more forgiving collision detection - accounting for sprite drawn from bottom left
+                const int BARRY_HITBOX_X = BARRY_X + 3;          // Small inset from left
+                const int BARRY_HITBOX_Y = barryY - BARRY_HEIGHT + 8;  // Bottom-left origin, so subtract height and add offset
+                const int BARRY_HITBOX_WIDTH = BARRY_WIDTH - 6;  // Make hitbox slightly narrower
+                const int BARRY_HITBOX_HEIGHT = BARRY_HEIGHT - 16; // Make hitbox much shorter to exclude jetpack
+                
+                // Debug collision - uncomment to visualize hitbox (for testing only)
+                // ST7735_FillRect(BARRY_HITBOX_X, BARRY_HITBOX_Y, BARRY_HITBOX_WIDTH, BARRY_HITBOX_HEIGHT, ST7735_YELLOW);
+                
+                // Check collision with each active laser
                 for(int i = 0; i < MAX_LASERS; i++) {
                     if(game.lasers[i].active) {
                         int laserX = game.lasers[i].x;
@@ -705,324 +990,165 @@ case PLAYING:
                         int laserWidth = 0;
                         int laserHeight = 0;
                         
-                        // Set laser dimensions based on its type
+                        // Set laser hitbox dimensions based on its type
                         switch(game.lasers[i].type) {
                             case HORIZONTAL:
                                 laserWidth = game.lasers[i].size;
-                                laserHeight = 4;
+                                laserHeight = 4;  // Horizontal lasers are 4 pixels high
                                 break;
                             case VERTICAL:
-                                laserWidth = 4;
+                                laserWidth = 4;   // Vertical lasers are 4 pixels wide
                                 laserHeight = game.lasers[i].size;
                                 break;
                             case DIAGONAL:
-                                laserWidth = game.lasers[i].size * 0.7;
-                                laserHeight = game.lasers[i].size * 0.7;
+                                // For diagonal lasers, use a smaller, more accurate hitbox
+                                // This matches the visual representation better
+                                laserWidth = game.lasers[i].size * 0.7;  // Reduce hitbox size to match visual
+                                laserHeight = game.lasers[i].size * 0.7; // Reduce hitbox size to match visual
                                 break;
                         }
                         
-                        // Check if formation would overlap with this laser
-                        if(formation == HORIZONTAL_LINE) {
-                            int formationWidth = (formationLength * (coinWidth + spacing)) - spacing;
-                            if(startX < laserX + laserWidth + 20 && // Add buffer zone
-                               startX + formationWidth > laserX - 20 &&
-                               startY < laserY + laserHeight + 5 &&
-                               startY + coinHeight > laserY - 5) {
-                                overlapsLaser = true;
-                                break;
-                            }
-                        } else { // VERTICAL_LINE
-                            int formationHeight = (formationLength * (coinHeight + spacing)) - spacing;
-                            if(startX < laserX + laserWidth + 20 && // Add buffer zone
-                               startX + coinWidth > laserX - 20 &&
-                               startY < laserY + laserHeight + 5 &&
-                               startY + formationHeight > laserY - 5) {
-                                overlapsLaser = true;
-                                break;
-                            }
+                        // Check if Barry's hitbox collides with this laser
+                        if(CheckCollision(BARRY_HITBOX_X, BARRY_HITBOX_Y, BARRY_HITBOX_WIDTH, BARRY_HITBOX_HEIGHT, 
+                                         laserX, laserY, laserWidth, laserHeight)) {
+                            // Collision detected! Play sound and transition to game over
+                            Sound_Shoot();  // Play collision sound
+                            
+                            // Transition to game over state
+                            game.currentState = GAME_OVER;
+                            
+                            // No need to check other lasers
+                            break;
                         }
                     }
                 }
                 
-                // If no overlap with lasers, create the formation
-                if(!overlapsLaser) {
-                    // Find free slots and create formation
-                    int coinsPlaced = 0;
-                    for(int i = 0; i < MAX_COINS && coinsPlaced < formationLength; i++) {
-                        if(!game.coins[i].active) {
-                            game.coins[i].active = true;
-                            game.coins[i].formation = formation;
-                            game.coins[i].formationId = formationId;
+                // Check collision with each active coin
+                for(int i = 0; i < MAX_COINS; i++) {
+                    if(game.coins[i].active) {
+                        // Coin dimensions (6x6 pixels)
+                        const int COIN_WIDTH = 6;
+                        const int COIN_HEIGHT = 6;
+                        
+                        // Check if Barry's hitbox collides with this coin
+                        if(CheckCollision(BARRY_HITBOX_X, BARRY_HITBOX_Y, BARRY_HITBOX_WIDTH, BARRY_HITBOX_HEIGHT, 
+                                          game.coins[i].x, game.coins[i].y, COIN_WIDTH, COIN_HEIGHT)) {
+                            // Collision with coin! Add to coin counter and play sound
+                            game.coinsCollected++;  // Increment coin counter
+                            Sound_Coin();           // Play coin collection sound
                             
-                            if(formation == HORIZONTAL_LINE) {
-                                // Place coins in horizontal line
-                                game.coins[i].x = startX + (coinsPlaced * (coinWidth + spacing));
-                                game.coins[i].y = startY;
-                            } else { // VERTICAL_LINE
-                                // Place coins in vertical line
-                                game.coins[i].x = startX;
-                                game.coins[i].y = startY + (coinsPlaced * (coinHeight + spacing));
-                            }
-                            
-                            coinsPlaced++;
+                            // Deactivate the coin
+                            game.coins[i].active = false;
                         }
                     }
                 }
             }
-        }
-        
-        // Move and draw active coins
-        for(int i = 0; i < MAX_COINS; i++) {
-            if(game.coins[i].active) {
-                // Move coin left with background
-                game.coins[i].x -= 2;  // Same speed as background
+            break;
                 
-                // If coin moves off screen, deactivate it
-                if(game.coins[i].x < -6) {  // 6 is the width of coin0
-                    game.coins[i].active = false;
-                } else {
-                    // Draw the coin using the coin0 bitmap (6x6 pixels)
-                    ST7735_DrawBitmap(game.coins[i].x, game.coins[i].y, coin0, 6, 6);
+            case GAME_OVER:
+                // Only clear screen when entering this state for the first time
+                static bool firstTimeGameOver = true;
+                if(firstTimeGameOver) {
+                    ST7735_FillScreen(ST7735_BLACK);
+                    firstTimeGameOver = false;
                 }
-            }
-        }
-    }
-    
-{  // Scope block for Barry's movement and drawing
-    // Define Barry's position and velocity
-    static int barryY = 95;              // Barry's Y position - start in middle
-    static float barryVelocity = 0;      // Barry's vertical velocity
-    static int lastBarryY = -999;        // Track Barry's last position
-    
-    // Physics constants
-    static const float GRAVITY = 0.3;    // Gravity acceleration
-    static const float THRUST = -0.6;    // Upward acceleration when button pressed
-    static const float TERMINAL_VEL = 4; // Maximum falling speed
-    static const float MAX_THRUST = -3;  // Maximum upward speed
-    
-    // Read up/down button states
-    uint32_t upState = (GPIOB->DIN31_0 & (1 << 13)) >> 13;    // Up button
-    
-    // Apply acceleration based on button state
-    if(upState) {
-        barryVelocity += THRUST;  // Apply upward thrust (negative is up)
-        
-        // Limit upward velocity
-        if(barryVelocity < MAX_THRUST) {
-            barryVelocity = MAX_THRUST;
-        }
-    } else {
-        // Apply gravity
-        barryVelocity += GRAVITY;
-        
-        // Limit falling velocity
-        if(barryVelocity > TERMINAL_VEL) {
-            barryVelocity = TERMINAL_VEL;
-        }
-    }
-    
-    // Update Barry's position using his velocity
-    barryY += (int)barryVelocity;
-    
-    // Keep Barry within screen bounds
-    if(barryY < 70) {  // Changed from 69 to 55 to account for 37-pixel sprite
-        barryY = 70;  // Top boundary (below ceiling)
-        barryVelocity = 0; // Stop velocity when hitting ceiling
-    }
-    if(barryY > 120) {
-        barryY = 120; // Bottom boundary (above floor)
-        barryVelocity = 0; // Stop velocity when hitting floor
-    }
-    
-    // Disable interrupts during drawing to prevent tearing
-    __disable_irq();
-    
-    // Only update if Barry moved or background scrolled
-    if(barryY != lastBarryY || game.backgroundX % 2 == 0) {
-        // Draw the scrolling background
-        ST7735_DrawBitmap(game.backgroundX, 121, bg_spaceship_2, 128, 82);
-        if(game.backgroundX < 0) {
-            ST7735_DrawBitmap(game.backgroundX + 128, 121, bg_spaceship_2, 128, 82);
-        }
-        
-        // Draw Barry
-        ST7735_DrawBitmap(15, barryY, barry3, 18, 30);
-    }
-    
-    // Re-enable interrupts
-    __enable_irq();
-    
-    // Update last position for next frame
-    lastBarryY = barryY;
-    
-    // Display score and lives
-    char scoreStr[20];
-    char coinStr[20];
-    if(game.language == English) {
-        sprintf(scoreStr, "%dm", game.score);
-        sprintf(coinStr, "Coins: %d", game.coinsCollected);
-        ST7735_DrawString(0, 0, scoreStr, ST7735_WHITE);
-        ST7735_DrawString(9, 0, coinStr, ST7735_WHITE);
-    } else { // Spanish
-        sprintf(scoreStr, "Puntos: %d", game.score);
-        sprintf(coinStr, "Monedas: %d", game.coinsCollected);
-        ST7735_DrawString(0, 0, scoreStr, ST7735_WHITE);
-        ST7735_DrawString(0, 1, coinStr, ST7735_WHITE);
-    }
-    
-    // Increment score every frame (you can adjust this as needed)
-    game.score++;
-    
-    // Collision detection between Barry and lasers
-    const int BARRY_X = 15;          // Barry's X position (fixed)
-    const int BARRY_WIDTH = 18;      // Barry's width
-    const int BARRY_HEIGHT = 30;     // Barry's height
-    
-    // Create a smaller hitbox for Barry (use a 60% of visual size)
-    // This creates a more forgiving collision detection - accounting for sprite drawn from bottom left
-    const int BARRY_HITBOX_X = BARRY_X + 3;          // Small inset from left
-    const int BARRY_HITBOX_Y = barryY - BARRY_HEIGHT + 8;  // Bottom-left origin, so subtract height and add offset
-    const int BARRY_HITBOX_WIDTH = BARRY_WIDTH - 6;  // Make hitbox slightly narrower
-    const int BARRY_HITBOX_HEIGHT = BARRY_HEIGHT - 16; // Make hitbox much shorter to exclude jetpack
-    
-    // Debug collision - uncomment to visualize hitbox (for testing only)
-    // ST7735_FillRect(BARRY_HITBOX_X, BARRY_HITBOX_Y, BARRY_HITBOX_WIDTH, BARRY_HITBOX_HEIGHT, ST7735_YELLOW);
-    
-    // Check collision with each active laser
-    for(int i = 0; i < MAX_LASERS; i++) {
-        if(game.lasers[i].active) {
-            int laserX = game.lasers[i].x;
-            int laserY = game.lasers[i].y;
-            int laserWidth = 0;
-            int laserHeight = 0;
-            
-            // Set laser hitbox dimensions based on its type
-            switch(game.lasers[i].type) {
-                case HORIZONTAL:
-                    laserWidth = game.lasers[i].size;
-                    laserHeight = 4;  // Horizontal lasers are 4 pixels high
-                    break;
-                case VERTICAL:
-                    laserWidth = 4;   // Vertical lasers are 4 pixels wide
-                    laserHeight = game.lasers[i].size;
-                    break;
-                case DIAGONAL:
-                    // For diagonal lasers, use a smaller, more accurate hitbox
-                    // This matches the visual representation better
-                    laserWidth = game.lasers[i].size * 0.7;  // Reduce hitbox size to match visual
-                    laserHeight = game.lasers[i].size * 0.7; // Reduce hitbox size to match visual
-                    break;
-            }
-            
-            // Check if Barry's hitbox collides with this laser
-            if(CheckCollision(BARRY_HITBOX_X, BARRY_HITBOX_Y, BARRY_HITBOX_WIDTH, BARRY_HITBOX_HEIGHT, 
-                             laserX, laserY, laserWidth, laserHeight)) {
-                // Collision detected! Play sound and transition to game over
-                Sound_Shoot();  // Play collision sound
                 
-                // Transition to game over state
-                game.currentState = GAME_OVER;
+                // Draw the game over screen with fancy red text
+                if(game.language == English) {
+                    ST7735_DrawString(3, 3, (char*)"GAME OVER", ST7735_RED);
+                    
+                    // Display final score
+                    char scoreStr[20];
+                    sprintf(scoreStr, "SCORE: %d", game.score);
+                    ST7735_DrawString(3, 6, scoreStr, ST7735_WHITE);
+                    
+                    // Display coin count
+                    char coinStr[20];
+                    sprintf(coinStr, "COINS: %d", game.coinsCollected);
+                    ST7735_DrawString(3, 8, coinStr, ST7735_WHITE);
+                    
+                    // Display difficulty
+                    char difficultyStr[20] = "DIFFICULTY: ";
+                    switch(game.difficulty) {
+                        case EASY:
+                            strcat(difficultyStr, "EASY");
+                            ST7735_DrawString(1, 10, difficultyStr, ST7735_GREEN);
+                            break;
+                        case MEDIUM:
+                            strcat(difficultyStr, "MEDIUM");
+                            ST7735_DrawString(1, 10, difficultyStr, ST7735_YELLOW);
+                            break;
+                        case HARD:
+                            strcat(difficultyStr, "HARD");
+                            ST7735_DrawString(1, 10, difficultyStr, ST7735_RED);
+                            break;
+                    }
+                    
+                    // Display restart instruction
+                    ST7735_DrawString(1, 13, (char*)"PRESS RIGHT BUTTON", ST7735_WHITE);
+                    ST7735_DrawString(2, 14, (char*)"FOR DIFFICULTY", ST7735_WHITE);
+                } else { // Spanish
+                    ST7735_DrawString(3, 3, (char*)"FIN DEL JUEGO", ST7735_RED);
+                    
+                    // Display final score
+                    char scoreStr[20];
+                    sprintf(scoreStr, "PUNTOS: %d", game.score);
+                    ST7735_DrawString(3, 6, scoreStr, ST7735_WHITE);
+                    
+                    // Display coin count
+                    char coinStr[20];
+                    sprintf(coinStr, "MONEDAS: %d", game.coinsCollected);
+                    ST7735_DrawString(3, 8, coinStr, ST7735_WHITE);
+                    
+                    // Display difficulty
+                    char difficultyStr[20] = "DIFICULTAD: ";
+                    switch(game.difficulty) {
+                        case EASY:
+                            strcat(difficultyStr, "FACIL");
+                            ST7735_DrawString(1, 10, difficultyStr, ST7735_GREEN);
+                            break;
+                        case MEDIUM:
+                            strcat(difficultyStr, "MEDIO");
+                            ST7735_DrawString(1, 10, difficultyStr, ST7735_YELLOW);
+                            break;
+                        case HARD:
+                            strcat(difficultyStr, "DIFICIL");
+                            ST7735_DrawString(1, 10, difficultyStr, ST7735_RED);
+                            break;
+                    }
+                    
+                    // Display restart instruction
+                    ST7735_DrawString(1, 13, (char*)"PRESIONA DERECHA", ST7735_WHITE);
+                    ST7735_DrawString(2, 14, (char*)"PARA DIFICULTAD", ST7735_WHITE);
+                }
                 
-                // No need to check other lasers
+                // Check if right button is pressed to restart
+                if(buttons & BUTTON_RIGHT) {
+                    // Reset game state
+                    game.currentState = DIFFICULTY_SELECT;  // Go to difficulty selection instead of start screen
+                    game.score = 0;
+                    game.coinsCollected = 0;  // Reset coin counter
+                    game.backgroundX = 0;
+                    
+                    // Reset all lasers
+                    for(int i = 0; i < MAX_LASERS; i++) {
+                        game.lasers[i].active = false;
+                    }
+                    
+                    // Reset all coins
+                    for(int i = 0; i < MAX_COINS; i++) {
+                        game.coins[i].active = false;
+                    }
+                    
+                    // Reset first time flags
+                    firstTimeGameOver = true;
+                    
+                    // Clear screen before transitioning
+                    ST7735_FillScreen(ST7735_BLACK);
+                    Clock_Delay1ms(100); // debounce
+                }
                 break;
             }
         }
     }
-    
-    // Check collision with each active coin
-    for(int i = 0; i < MAX_COINS; i++) {
-        if(game.coins[i].active) {
-            // Coin dimensions (6x6 pixels)
-            const int COIN_WIDTH = 6;
-            const int COIN_HEIGHT = 6;
-            
-            // Check if Barry's hitbox collides with this coin
-            if(CheckCollision(BARRY_HITBOX_X, BARRY_HITBOX_Y, BARRY_HITBOX_WIDTH, BARRY_HITBOX_HEIGHT, 
-                              game.coins[i].x, game.coins[i].y, COIN_WIDTH, COIN_HEIGHT)) {
-                // Collision with coin! Add to coin counter and play sound
-                game.coinsCollected++;  // Increment coin counter
-                Sound_Coin();           // Play coin collection sound
-                
-                // Deactivate the coin
-                game.coins[i].active = false;
-            }
-        }
-    }
-}
-break;
-                
-case GAME_OVER:
-    // Only clear screen when entering this state for the first time
-    static bool firstTimeGameOver = true;
-    if(firstTimeGameOver) {
-        ST7735_FillScreen(ST7735_BLACK);
-        firstTimeGameOver = false;
-    }
-    
-    // Draw the game over screen with fancy red text
-    if(game.language == English) {
-        ST7735_DrawString(3, 3, (char*)"GAME OVER", ST7735_RED);
-        
-        // Display final score
-        char scoreStr[20];
-        sprintf(scoreStr, "SCORE: %d", game.score);
-        ST7735_DrawString(3, 6, scoreStr, ST7735_WHITE);
-        
-        // Display coin count
-        char coinStr[20];
-        sprintf(coinStr, "COINS: %d", game.coinsCollected);
-        ST7735_DrawString(3, 8, coinStr, ST7735_WHITE);
-        
-        // Display restart instruction
-        ST7735_DrawString(1, 12, (char*)"PRESS RIGHT BUTTON", ST7735_WHITE);
-        ST7735_DrawString(4, 13, (char*)"TO RESTART", ST7735_WHITE);
-    } else { // Spanish
-        ST7735_DrawString(3, 3, (char*)"FIN DEL JUEGO", ST7735_RED);
-        
-        // Display final score
-        char scoreStr[20];
-        sprintf(scoreStr, "PUNTOS: %d", game.score);
-        ST7735_DrawString(3, 6, scoreStr, ST7735_WHITE);
-        
-        // Display coin count
-        char coinStr[20];
-        sprintf(coinStr, "MONEDAS: %d", game.coinsCollected);
-        ST7735_DrawString(3, 8, coinStr, ST7735_WHITE);
-        
-        // Display restart instruction
-        ST7735_DrawString(1, 12, (char*)"PRESIONA DERECHA", ST7735_WHITE);
-        ST7735_DrawString(3, 13, (char*)"PARA REINICIAR", ST7735_WHITE);
-    }
-    
-    // Check if right button is pressed to restart
-    uint32_t rightState = (GPIOA->DIN31_0 & (1 << 17)) >> 17;
-    if(rightState) {
-        // Reset game state
-        game.currentState = START_SCREEN;
-        game.score = 0;
-        game.coinsCollected = 0;  // Reset coin counter
-        game.backgroundX = 0;
-        
-        // Reset all lasers
-        for(int i = 0; i < MAX_LASERS; i++) {
-            game.lasers[i].active = false;
-        }
-        
-        // Reset all coins
-        for(int i = 0; i < MAX_COINS; i++) {
-            game.coins[i].active = false;
-        }
-        
-        // Reset first time flags
-        firstTimeGameOver = true;
-        
-        // Clear screen before transitioning
-        ST7735_FillScreen(ST7735_BLACK);
-        Clock_Delay1ms(100); // debounce
-    }
-    break;
-}
-}
-}
-// Test edit
 }

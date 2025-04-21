@@ -20,6 +20,7 @@ int main() {
     int caseZeroLine = -1;
     int breakLine = -1;
     
+    
     for (int i = 0; i < lines.size(); i++) {
         if (lines[i].find("case PLAYING:") != std::string::npos) {
             playingCaseStart = i;
