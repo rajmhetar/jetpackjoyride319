@@ -87,3 +87,6 @@ void Sound_Explosion(void){
   Sound_Start(explosion, 2000);
 }
 
+void Sound_Fastinvader1(void){
+  Sound_Start(fastinvader1, 982);
+}
